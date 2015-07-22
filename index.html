@@ -1,10 +1,387 @@
 <!DOCTYPE html>
 <html>
-  <head>
-    <title>Hello World!</title>
-  </head>
-  <body>
-    <h1>Hello World!</h1>
-    We are using node.js <script>document.write(process.version)</script>.
-  </body>
+<head>
+<script src="http://cdn.pubnub.com/pubnub-3.7.12.min.js"></script>
+<script src="https://www.webrtc-experiment.com/RTCPeerConnection-v1.6.js"></script>
+<title>Answerer with PubSub signaling</title>
+
+</head>
+
+<body>
+
+<div id='mainDiv'>
+
+	<table border="1" width="100%">
+		<tr>
+			<td align="center">
+				<textarea rows="4" cols="60" id="sendTextarea"></textarea>
+			</td>
+			<td align="center">
+				<textarea rows="4" cols="60" id="receiveLog"></textarea>
+			</td>		
+		</tr>
+		<tr>
+			<td align="center">
+				<button id="sendButton">Send</button>
+				<select id="typeSelect">
+					<option>Notification</option>
+					<option>Alert</option>
+				</select>
+			</td>
+			<td></td>
+		</tr>	
+		<tr>
+			<td align="center">
+				<a id="received"></a>	
+			</td>
+			<td align="center">
+			</td>
+		</tr>
+		<tr>
+			<td align="center">
+				<form id="fileInfo">
+	        		<input type="file" id="fileInput" name="files"/>
+	        		<button id="sendFileButton">Send File</button>
+				</form>
+				<div class="progress">
+					<div class="label">Send progress: </div>
+					<progress id="sendProgress" max="0" value="0"></progress>
+				</div>
+			</td>
+			<td></td>
+		</tr>
+	</table>
+</div>
+
+<script type="text/javascript">
+	"use strict"
+	var receiveTextarea = document.getElementById("receiveLog");
+	var sendTextarea    = document.getElementById("sendTextarea");
+	var receiveTextarea = document.getElementById("receiveLog");
+
+	var sendButton      = document.getElementById("sendButton");
+	var fileInput       = document.getElementById("fileInput");
+	var sendFileButton  = document.getElementById("sendFileButton");
+	var sendProgress    = document.getElementById("sendProgress");
+
+	var downloadDiv     = document.getElementById("received");
+
+	sendButton.onclick     = sendText;
+	sendFileButton.onclick = sendFile;
+ 
+    var pubnub = PUBNUB({                          
+        publish_key   : 'pub-c-540d3bfa-dd7a-4520-a9e4-907370d2ce37',
+        subscribe_key : 'sub-c-3af2bc02-2b93-11e5-9bdb-0619f8945a4f'
+    });
+    pubnub.subscribe({                                     
+        channel : "webrtc-app",
+        message : function(message,env,ch,timer,magic_ch){
+        	oncallback(message);
+        },
+        connect: function() {}
+    });
+
+	var userID = 'com.lucanchen.answerer';             /* unique ID to identify this user */
+	var peer;
+
+	function oncallback(response) 
+	{
+		log("=======received Something: "+ response);
+	    if(response.userID == userID || response.userID !=='com.lucanchen.offerer' ) {
+	    	log("=======ignoring message from userID: "+ response.userID);
+	    	return;
+	    }
+		log("=======received Something with userID: "+ response.userID);
+	    // you can show a "join" button or you can send participant request
+	    if(response.type && response.type == 'request to join') {
+	    	log("============1================");
+	    	sendParticipant();
+	    }
+
+	    // offer sdp sent to you by offerer
+	    if(response.firstPart || response.secondPart || response.fullPart)
+	    {
+	    	log("============2================");
+	        processAnswerSDP(response);
+	    }
+	    if (response.candidate) {
+	    	log("============received candidate================"+response.candidate.sdpMLineIndex+"========="+response.candidate.sdpMid+"============="+response.candidate.candidate);
+	    	log("Adding candicate");
+	    	peer.addICE({
+			    sdpMLineIndex 	: response.candidate.sdpMLineIndex,
+			    sdpMid          : response.candidate.sdpMid,
+			    candidate 		: response.candidate.candidate
+			});
+	    }
+	}
+
+	sendParticipant();
+
+	function sendParticipant() {
+		pubnub.publish({                                    
+            channel : "webrtc-app",
+            message : {
+			    participant: true,
+			    userID: userID
+	    	},
+            callback: function(m){}
+        });
+		log("sending participant");
+	}
+
+	function createAnswer(offer_sdp)
+	{
+		log('Creating answer');
+	    peer = RTCPeerConnection({
+	        /* you need to pass offer sdp sent by offerer */
+	        offerSDP: offer_sdp,
+	        onAnswerSDP: sendAnswerSDP,
+		        // onOfferSDP: function(sdp){
+		        // 	log("=========onOfferSDP");
+		        // },
+	        onICE: function(candidate) {
+	        	log("sending candidate, candidate.sdpMLineIndex: "          +candidate.sdpMLineIndex);
+	        	log("sending candidate, candidate.sdpMLineIndex stringify: "+JSON.stringify(candidate.sdpMLineIndex));
+	        	log("sending candidate, candidate.sdpMid: "          +candidate.sdpMid);
+	        	log("sending candidate, candidate.sdpMid stringify: "+JSON.stringify(candidate.sdpMid));
+	        	log("sending candidate, candidate.candidate: "          +candidate.candidate);
+	        	log("sending candidate, candidate.candidate stringify: "+JSON.stringify(candidate.candidate));
+	            pubnub.publish({                                    
+		            channel : "webrtc-app",
+		            message : {
+		                userID: userID,
+		                candidate: {
+		                    sdpMLineIndex   : candidate.sdpMLineIndex,
+		                    sdpMid          : candidate.sdpMid,
+		                    candidate       : candidate.candidate
+		                }
+			    	},
+		            callback: function(m){}
+		        });
+	        },
+	        onRemoteStream: function(stream) {
+	            // if(stream) video.src = webkitURL.createObjectURL(stream);
+	        },
+	        onChannelMessage: function (event) {
+		        for (var prop in event) {
+		        	log("=======prop: "+prop+"======:"+event[prop]);
+		        }
+
+		        var data = event.data;
+		        var data_fileSize = new Uint32Array(data, 0, 8);
+		        var data_type     = new Uint8Array(data, 8, 1);
+
+		        var fileSize = data_fileSize[0];
+		        var type     = data_type[0];
+
+		        log("===============receive data length: " + data.byteLength);
+		        log("===============fileSize: "            + fileSize);
+		        log("===============type: "                + type);
+
+	        	if (type === 0) { 
+	        		// type : File
+	        		// var fileU8 = new Uint8Array(data, 9, data.byteLength - 9);
+	        		// log("==================first byte hex value: "+fileU8[0]+"======"+fileU8[1]);
+	        		// var fileData = new Uint8Array(data, 9, data.byteLength - 9).buffer;
+	        		var fileData = data.slice(9);
+					OnFileData("fileNameNotDefined", fileSize, fileData, data.byteLength - 9); // file hash in the future maybe
+	        	} else if (type === 1) { 
+	        		// type : Text
+	        		log("Received text:"+data); 
+	        	} else if (type === undefined) {
+	        		log("Received undefined type"); 
+	        	}
+	        },
+    		onChannelOpened: function (channel) {
+    			log("RTCDataChannel opened");
+    		}, 
+    		onChannelClosed: function (event) {
+    			log("RTCDataChannel closed");
+    		},
+            onChannelError: function (event) {
+            	log("RTCDataChannel error");
+            }
+	    });
+	}
+
+	// send offer sdp 
+	function sendAnswerSDP(sdp)
+	{
+	    var sdp = JSON.stringify(sdp);
+
+	    if (sdp.length <= 7000) {
+			pubnub.publish({                                    
+	            channel : "webrtc-app",
+	            message : {
+		        	userID  : userID,
+		        	fullPart: sdp
+	    		},
+            	callback: function(m){}
+        	});
+
+	        log("Sending answer by full part");
+	    	return;
+	    }
+
+	    /* because sdp size is larger than what pubnub supports for single request...
+	    /* that's why it is splitted in two parts */
+	    var firstPart = sdp.substr(0, 700),
+	        secondPart = sdp.substr(701, sdp.length - 1);
+
+	    /* transmitting first sdp part */
+		pubnub.publish({                                    
+            channel : "webrtc-app",
+            message : {
+	        	userID: userID,
+	        	firstPart: firstPart
+	    	},
+            callback: function(m){}
+        });
+
+	    /* transmitting second sdp part */
+		pubnub.publish({                                    
+            channel : "webrtc-app",
+            message : {
+	        	userID: userID,
+		        secondPart: secondPart
+	    	},
+            callback: function(m){}
+        });
+	    log("Sending answer by two parts");
+	}
+
+	var offerSDP = {};
+
+	// got answer sdp, process it 
+	function processAnswerSDP(response)
+	{
+		log("==============processAnswerSDP=======1");
+	    if (response.firstPart) {
+	        offerSDP.firstPart = response.firstPart;
+	        log("==============processAnswerSDP=======2");
+	        if (offerSDP.secondPart) {
+	        	log("==============processAnswerSDP=======3");
+	            var fullSDP = offerSDP.firstPart + offerSDP.secondPart;
+	            log("==========using firstPart======"+fullSDP);
+	            for (var prop in fullSDP) {
+	            	log("====================1 prop:=="+prop);
+	            }
+	            createAnswer(fullSDP);
+	        }
+	    }
+	    log("==============processAnswerSDP=======4");
+	    if (response.secondPart) {
+	    	log("==============processAnswerSDP=======5");
+	        offerSDP.secondPart = response.secondPart;
+	        if (offerSDP.firstPart) {
+	            var fullSDP = offerSDP.firstPart + offerSDP.secondPart;
+	            log("==========using secondPart======"+fullSDP);
+	            for (var prop in fullSDP) {
+	            	log("====================2 prop:=="+prop);
+	            }
+	            createAnswer(fullSDP);
+	        }
+	    }
+
+	    if (response.fullPart) {
+	    	log("==========using fullPart======"+response.fullPart);
+            for (var prop in response.fullPart) {
+            	log("====================3 prop:=="+prop);
+            }
+	    	createAnswer(response.fullPart);
+	    }
+	}
+
+	/////////////////////////////////////////////////////
+	//Send files
+	function sendFile() {
+	  var file = fileInput.files[0];
+	  log('file is ' + [file.name, file.size, file.type, file.lastModifiedDate].join(' '));
+	  if (file.size === 0) {
+	    return false;
+	  }
+	  sendProgress.max = file.size;
+	  var chunkSize = 16384;
+	  var sliceFile = function(offset) {
+	    var reader = new window.FileReader();
+	    reader.onload = (function() {
+	      return function(e) {
+	        var data = JSON.stringify({type:  'File', fileName: file.name, fileSize: file.size, value: Array.apply(null, new Uint8Array(e.target.result)), valueLength: e.target.result.byteLength});
+	        peer.sendData(data);
+	        if (file.size > offset + e.target.result.byteLength) {
+	          window.setTimeout(sliceFile, 0, offset + chunkSize);
+	        }
+	        sendProgress.value = offset + e.target.result.byteLength;
+	      };
+	    })(file);
+	    var slice = file.slice(offset, offset + chunkSize);
+	    reader.readAsArrayBuffer(slice);
+	  };
+	  sliceFile(0);
+	  log("Sending File, name: "+file.name);
+	  return false;
+	}
+	/////////////////////////////////////////////////////
+	///HTML control handlers
+	function sendText() {
+	  var data = sendTextarea.value;
+	  
+	  peer.sendData(JSON.stringify({type:  'Text', value: data}));
+	  log("Sending Text: "+data);
+	}
+
+	/////////////////////////////////////////////////////
+	// receive fill util functions and variables
+	var fileName = '';
+	var fileSize = 0;
+	var receiveBuffer = [];
+	var receivedSize  = 0;
+
+	function OnFileData(fName, fSize, fileData, valueLength) {
+	  log("========fSize:"+fSize+"============"+valueLength+"==============="+fileData.byteLength);
+	  if (fileName === '' && fileSize === 0) {
+	    // beginning of file transfering
+	    fileName = fName;
+	    fileSize = fSize;
+	    receiveBuffer = [];
+	    receivedSize  = 0;
+	  }
+	  // in progress of file transfering
+	  if (fileName !== fName || fileSize !== fSize) {
+	    log("Something wrong when transfering file, reason[file name/size does not match]");
+	    log("Something wrong when transfering file, fileName:" + fileName + ", fileSize:" + fileSize + ", fName:"+fName + ", fSize:"+fSize);
+	    fileName = '';
+	    fileSize = 0;
+	    receiveBuffer = [];
+	    receivedSize  = 0;
+	    return;  
+	  }
+
+	  receiveBuffer.push(fileData);
+	  receivedSize += valueLength;
+	  
+	  if (receivedSize === fileSize) {
+	    log("File received, name:"+fileName + ", size:"+fileSize);
+	    var received = new window.Blob(receiveBuffer);
+	    log("==============total received:"+received.byteLength);
+
+	    downloadDiv.href = URL.createObjectURL(received);
+	    downloadDiv.download = fileName;
+	    var text = 'Click to download \'' + fileName + '\' (' + fileSize + ' bytes)';
+	    downloadDiv.appendChild(document.createTextNode(text));
+	    downloadDiv.style.display = 'block';
+
+	    // able to receive file from guest again
+	    fileName = '';
+	    fileSize = 0;
+	  }
+	}
+
+	function log(text) {
+	  console.log(text);
+	  receiveTextarea.value += '..........event log: '+text + '\n';
+	}
+</script>
+
+</body>
 </html>
