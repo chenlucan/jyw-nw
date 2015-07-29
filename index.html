@@ -170,21 +170,24 @@
 		        var data = event.data;
 		        var data_fileSize = new Uint32Array(data, 0, 8);
 		        var data_type     = new Uint8Array(data, 8, 1);
+		        var data_name     = new Uint8Array(data, 9, 19);
 
 		        var fileSize = data_fileSize[0];
 		        var type     = data_type[0];
+		        var fileName = String.fromCharCode.apply(null, data_name);
 
 		        log("===============receive data length: " + data.byteLength);
 		        log("===============fileSize: "            + fileSize);
 		        log("===============type: "                + type);
+		        log("===============name: "                + fileName);
 
 	        	if (type === 0) { 
 	        		// type : File
 	        		// var fileU8 = new Uint8Array(data, 9, data.byteLength - 9);
 	        		// log("==================first byte hex value: "+fileU8[0]+"======"+fileU8[1]);
 	        		// var fileData = new Uint8Array(data, 9, data.byteLength - 9).buffer;
-	        		var fileData = data.slice(9);
-					OnFileData("fileNameNotDefined", fileSize, fileData, data.byteLength - 9); // file hash in the future maybe
+	        		var fileData = data.slice(28);
+					OnFileData(fileName, fileSize, fileData, data.byteLength - 28); // file hash in the future maybe
 	        	} else if (type === 1) { 
 	        		// type : Text
 	        		log("Received text:"+data); 
@@ -382,7 +385,7 @@
 	    downloadDiv.appendChild(document.createTextNode(text));
 	    downloadDiv.style.display = 'block';
 
-	    fs.open('./img.jpg', 'w', function(err, fd) {
+	    fs.open('./'+fileName, 'w', function(err, fd) {
 	    	if (err) {
 	    		log("open file failed img.jep");
 	    	} else {
