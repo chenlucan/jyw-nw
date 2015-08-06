@@ -8,7 +8,6 @@
 </head>
 
 <body>
-
 <div id='mainDiv'>
 
 	<table border="1" width="100%">
@@ -56,6 +55,9 @@
 <script type="text/javascript">
 	"use strict"
 	var fs     = require('fs');
+	var dataPath = './data/';
+	fs.mkdir(dataPath, function(){});
+
 	var memcpy = require('memcpy');
 	var memcpy_native = memcpy.native;
 
@@ -385,7 +387,7 @@
 	    downloadDiv.appendChild(document.createTextNode(text));
 	    downloadDiv.style.display = 'block';
 
-	    fs.open('./'+fileName, 'w', function(err, fd) {
+	    fs.open(dataPath+fileName, 'w', function(err, fd) {
 	    	if (err) {
 	    		log("open file failed img.jep");
 	    	} else {
