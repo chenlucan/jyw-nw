@@ -9,7 +9,7 @@
 
 <body>
 <div id='mainDiv'>
-
+	<h2>Using email address:</h2><h1 id= "userEmail"></h1>
 	<table border="1" width="100%">
 		<tr>
 			<td align="center">
@@ -54,13 +54,23 @@
 
 <script type="text/javascript">
 	"use strict"
+	var gui = require('nw.gui');
+
+	var userEmail = "";
+
+	do {
+		userEmail = prompt("Please enter email address to connect your devices.\n\"Cancel\" to quit application");
+	} while (userEmail === "");
+
+	if (userEmail === null || userEmail === undefined) {
+		gui.App.quit();
+	}
+	
 	var fs     = require('fs');
 	var dataPath = './data/';
 	fs.mkdir(dataPath, function(){});
 
-	var memcpy = require('memcpy');
-	var memcpy_native = memcpy.native;
-
+	var userEmailText   = document.getElementById("userEmail");
 	var receiveTextarea = document.getElementById("receiveLog");
 	var sendTextarea    = document.getElementById("sendTextarea");
 	var receiveTextarea = document.getElementById("receiveLog");
@@ -72,6 +82,7 @@
 
 	var downloadDiv     = document.getElementById("received");
 
+	userEmailText.innerHTML = userEmail;
 	sendButton.onclick     = sendText;
 	sendFileButton.onclick = sendFile;
  
@@ -80,7 +91,7 @@
         subscribe_key : 'sub-c-3af2bc02-2b93-11e5-9bdb-0619f8945a4f'
     });
     pubnub.subscribe({                                     
-        channel : "webrtc-app",
+        channel : userEmail,
         message : function(message,env,ch,timer,magic_ch){
         	oncallback(message);
         },
@@ -125,7 +136,7 @@
 
 	function sendParticipant() {
 		pubnub.publish({                                    
-            channel : "webrtc-app",
+            channel : userEmail,
             message : {
 			    participant: true,
 			    userID: userID
@@ -153,7 +164,7 @@
 	        	log("sending candidate, candidate.candidate: "          +candidate.candidate);
 	        	log("sending candidate, candidate.candidate stringify: "+JSON.stringify(candidate.candidate));
 	            pubnub.publish({                                    
-		            channel : "webrtc-app",
+		            channel : userEmail,
 		            message : {
 		                userID: userID,
 		                candidate: {
@@ -216,7 +227,7 @@
 
 	    if (sdp.length <= 7000) {
 			pubnub.publish({                                    
-	            channel : "webrtc-app",
+	            channel : userEmail,
 	            message : {
 		        	userID  : userID,
 		        	fullPart: sdp
@@ -235,7 +246,7 @@
 
 	    /* transmitting first sdp part */
 		pubnub.publish({                                    
-            channel : "webrtc-app",
+            channel : userEmail,
             message : {
 	        	userID: userID,
 	        	firstPart: firstPart
@@ -245,7 +256,7 @@
 
 	    /* transmitting second sdp part */
 		pubnub.publish({                                    
-            channel : "webrtc-app",
+            channel : userEmail,
             message : {
 	        	userID: userID,
 		        secondPart: secondPart
