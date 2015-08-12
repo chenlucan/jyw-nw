@@ -317,13 +317,24 @@
 	    return false;
 	  }
 	  sendProgress.max = file.size;
-	  var chunkSize = 16384;
+	  // var chunkSize = 16384;
+	  var chunkSize = 65000;
+
 	  var sliceFile = function(offset) {
+	  	log("sending file, offset:"+offset);
 	    var reader = new window.FileReader();
 	    reader.onload = (function() {
 	      return function(e) {
-	        var data = JSON.stringify({type:  'File', fileName: file.name, fileSize: file.size, value: Array.apply(null, new Uint8Array(e.target.result)), valueLength: e.target.result.byteLength});
-	        peer.sendData(data);
+	      	if (offset == 0) {
+		        var data = JSON.stringify({type:'File', fileName: file.name, fileSize: file.size});
+		        log("sending file, JSON string length: "+data.length);
+		        peer.sendData(data);	
+	      	}
+
+	      	var data_value_u8 = new Uint8Array(e.target.result);
+	      	var data_value = Array.apply(null, data_value_u8);
+	      	peer.sendData(e.target.result);
+
 	        if (file.size > offset + e.target.result.byteLength) {
 	          window.setTimeout(sliceFile, 0, offset + chunkSize);
 	        }
@@ -333,6 +344,9 @@
 	    var slice = file.slice(offset, offset + chunkSize);
 	    reader.readAsArrayBuffer(slice);
 	  };
+
+
+
 	  sliceFile(0);
 	  log("Sending File, name: "+file.name);
 	  return false;
