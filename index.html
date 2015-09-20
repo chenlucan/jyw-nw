@@ -9,7 +9,7 @@
 
 <body>
 <div id='mainDiv'>
-	<h2>Using email address:</h2><h1 id= "userEmail"></h1>
+	<h2>Using email address:</h2><h1 id= "userEmail"></h1><h1 id= "connectionIndicator"></h1>
 	<table border="1" width="100%">
 		<tr>
 			<td align="center">
@@ -57,10 +57,11 @@
 	var gui = require('nw.gui');
 
 	var userEmail = "";
-
-	do {
-		userEmail = prompt("Please enter email address to connect your devices.\n\"Cancel\" to quit application");
-	} while (userEmail === "");
+			userEmail = "lucan";
+			// hard code for lucan
+			// do {
+			// 	userEmail = prompt("Please enter email address to connect your devices.\n\"Cancel\" to quit application");
+			// } while (userEmail === "");
 
 	if (userEmail === null || userEmail === undefined) {
 		gui.App.quit();
@@ -71,6 +72,7 @@
 	fs.mkdir(dataPath, function(){});
 
 	var userEmailText   = document.getElementById("userEmail");
+	var connIndicator   = document.getElementById("connectionIndicator");
 	var receiveTextarea = document.getElementById("receiveLog");
 	var sendTextarea    = document.getElementById("sendTextarea");
 	var receiveTextarea = document.getElementById("receiveLog");
@@ -210,9 +212,11 @@
 	        },
     		onChannelOpened: function (channel) {
     			log("RTCDataChannel opened");
+    			connIndicator.innerHTML = "Connected";
     		}, 
     		onChannelClosed: function (event) {
     			log("RTCDataChannel closed");
+    			connIndicator.innerHTML = "Disconnected";
     		},
             onChannelError: function (event) {
             	log("RTCDataChannel error");
@@ -317,13 +321,24 @@
 	    return false;
 	  }
 	  sendProgress.max = file.size;
-	  var chunkSize = 16384;
+	  // var chunkSize = 16384;
+	  var chunkSize = 65000;
+
 	  var sliceFile = function(offset) {
+	  	log("sending file, offset:"+offset);
 	    var reader = new window.FileReader();
 	    reader.onload = (function() {
 	      return function(e) {
-	        var data = JSON.stringify({type:  'File', fileName: file.name, fileSize: file.size, value: Array.apply(null, new Uint8Array(e.target.result)), valueLength: e.target.result.byteLength});
-	        peer.sendData(data);
+	      	if (offset == 0) {
+		        var data = JSON.stringify({type:'File', fileName: file.name, fileSize: file.size});
+		        log("sending file, JSON string length: "+data.length);
+		        peer.sendData(data);	
+	      	}
+
+	      	var data_value_u8 = new Uint8Array(e.target.result);
+	      	var data_value = Array.apply(null, data_value_u8);
+	      	peer.sendData(e.target.result);
+
 	        if (file.size > offset + e.target.result.byteLength) {
 	          window.setTimeout(sliceFile, 0, offset + chunkSize);
 	        }
@@ -333,6 +348,9 @@
 	    var slice = file.slice(offset, offset + chunkSize);
 	    reader.readAsArrayBuffer(slice);
 	  };
+
+
+
 	  sliceFile(0);
 	  log("Sending File, name: "+file.name);
 	  return false;
