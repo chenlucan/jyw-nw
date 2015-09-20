@@ -9,7 +9,7 @@
 
 <body>
 <div id='mainDiv'>
-	<h2>Using email address:</h2><h1 id= "userEmail"></h1>
+	<h2>Using email address:</h2><h1 id= "userEmail"></h1><h1 id= "connectionIndicator"></h1>
 	<table border="1" width="100%">
 		<tr>
 			<td align="center">
@@ -57,10 +57,11 @@
 	var gui = require('nw.gui');
 
 	var userEmail = "";
-
-	do {
-		userEmail = prompt("Please enter email address to connect your devices.\n\"Cancel\" to quit application");
-	} while (userEmail === "");
+			userEmail = "lucan";
+			// hard code for lucan
+			// do {
+			// 	userEmail = prompt("Please enter email address to connect your devices.\n\"Cancel\" to quit application");
+			// } while (userEmail === "");
 
 	if (userEmail === null || userEmail === undefined) {
 		gui.App.quit();
@@ -71,6 +72,7 @@
 	fs.mkdir(dataPath, function(){});
 
 	var userEmailText   = document.getElementById("userEmail");
+	var connIndicator   = document.getElementById("connectionIndicator");
 	var receiveTextarea = document.getElementById("receiveLog");
 	var sendTextarea    = document.getElementById("sendTextarea");
 	var receiveTextarea = document.getElementById("receiveLog");
@@ -210,9 +212,11 @@
 	        },
     		onChannelOpened: function (channel) {
     			log("RTCDataChannel opened");
+    			connIndicator.innerHTML = "Connected";
     		}, 
     		onChannelClosed: function (event) {
     			log("RTCDataChannel closed");
+    			connIndicator.innerHTML = "Disconnected";
     		},
             onChannelError: function (event) {
             	log("RTCDataChannel error");
