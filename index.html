@@ -86,7 +86,7 @@
 
 	userEmailText.innerHTML = userEmail;
 	sendButton.onclick     = sendText;
-	sendFileButton.onclick = sendFile;
+	sendFileButton.onclick = sendMutiFiles;
  
     var pubnub = PUBNUB({                          
         publish_key   : 'pub-c-540d3bfa-dd7a-4520-a9e4-907370d2ce37',
@@ -314,8 +314,12 @@
 
 	/////////////////////////////////////////////////////
 	//Send files
-	function sendFile() {
-	  var file = fileInput.files[0];
+	function sendMutiFiles() {
+		for (var file in fileInput.files) {
+			sendFile(file);
+		}
+	}
+	function sendFile(file) {
 	  log('file is ' + [file.name, file.size, file.type, file.lastModifiedDate].join(' '));
 	  if (file.size === 0) {
 	    return false;
