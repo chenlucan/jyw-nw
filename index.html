@@ -98,17 +98,19 @@
     pubnub.subscribe({                                     
         channel : userEmail,
         message : function(message,env,ch,timer,magic_ch){
-        	oncallback(message);
+        	OnPubnubMsg(message);
         },
         connect: function() {}
     });
 
-	var selfUserID = 'com.lucanchen.answerer';             /* unique ID to identify this user 
-	*/
-	var otherUserID = 'com.lucanchen.offerer'; // supposed to be ignored
+	var offerer_role  = 'com.lucanchen.offerer';
+	var answerer_role = 'com.lucanchen.answerer';
+
+	var selfUserID  = answerer_role;
+	var otherUserID = offerer_role;
 	var peer;
 
-	function oncallback(response) 
+	function OnPubnubMsg(response) 
 	{
 	    if(response.userID == selfUserID || response.userID !== otherUserID ) {
 	    	return;
@@ -118,12 +120,22 @@
 	    	// sendParticipant();
 	    }
 
-	    // offer sdp sent to you by offerer
-	    if(selfUserID == "com.lucanchen.answerer" && 
+	    if(selfUserID == answerer_role && response.sdpType == "offer" &&
 	    	(response.firstPart || response.secondPart || response.fullPart))
 	    {
-	        processAnswerSDP(response);
+	        processOfferSDP(response);
 	    }
+	    log("================received answer 1");
+	    if(selfUserID == offerer_role && response.sdpType == "answer" &&
+	    	(response.firstPart || response.secondPart || response.fullPart))
+	    {
+	    	log("================received answer 1");
+	        if (response.fullPart) {
+	        	log("================received answer 2");
+	        	peer.addAnswerSDP(response.fullPart);
+	        }
+	    }
+	    
 	    if (response.candidate) {
 	    	peer.addICE({
 			    sdpMLineIndex 	: response.candidate.sdpMLineIndex,
@@ -150,22 +162,25 @@
 	}
 
 	function createOffer() {
-		selfUserID  = 'com.lucanchen.offerer';
-		otherUserID = 'com.lucanchen.answerer';
-		log('Creating offer, so my id is changed to: com.lucanchen.offerer');
+		selfUserID  = offerer_role;
+		otherUserID = answerer_role;
+		log('Creating offer, so my id is changed to: offerer');
 	    peer = RTCPeerConnection({
 	        /* you need to pass offer sdp sent by offerer */
 	        onOfferSDP: function(offerSDP) {
+	        	log("received offer..............");
 	        	pubnub.publish({                                    
 		            channel : userEmail,
 		            message : {
 		                userID: selfUserID,
+		                sdpType: "offer",
 		                fullPart: offerSDP
 			    	},
 		            callback: function(m){}
 		        });
 	        },
 	        onICE: function(candidate) {
+	        	log("sending candidate");
 	            pubnub.publish({                                    
 		            channel : userEmail,
 		            message : {
@@ -275,7 +290,7 @@
 	    });
 	}
 
-	// send offer sdp 
+	// send answer sdp 
 	function sendAnswerSDP(sdp)
 	{
 	    var sdp = JSON.stringify(sdp);
@@ -285,6 +300,7 @@
 	            channel : userEmail,
 	            message : {
 		        	userID  : selfUserID,
+		        	sdpType: "answer",
 		        	fullPart: sdp
 	    		},
             	callback: function(m){}
@@ -300,7 +316,7 @@
 	        secondPart = sdp.substr(701, sdp.length - 1);
 
 	    /* transmitting first sdp part */
-		pubnub.publish({                                    
+		pubnub.publish({                                   
             channel : userEmail,
             message : {
 	        	userID: selfUserID,
@@ -323,25 +339,30 @@
 
 	var offerSDP = {};
 
-	// got answer sdp, process it 
-	function processAnswerSDP(response)
+	// got offer sdp, process it, then create answer
+	function processOfferSDP(response)
 	{
+		log("===================processOfferSDP 1");
 	    if (response.firstPart) {
+	    	log("===================processOfferSDP 2");
 	        offerSDP.firstPart = response.firstPart;
 	        if (offerSDP.secondPart) {
 	            var fullSDP = offerSDP.firstPart + offerSDP.secondPart;
 	            createAnswer(fullSDP);
 	        }
 	    }
+	    log("===================processOfferSDP 3");
 	    if (response.secondPart) {
+	    	log("===================processOfferSDP 4");
 	        offerSDP.secondPart = response.secondPart;
 	        if (offerSDP.firstPart) {
 	            var fullSDP = offerSDP.firstPart + offerSDP.secondPart;
 	            createAnswer(fullSDP);
 	        }
 	    }
-
+		log("===================processOfferSDP 5");
 	    if (response.fullPart) {
+	    	log("===================processOfferSDP 6");
 	    	createAnswer(response.fullPart);
 	    }
 	}
@@ -357,6 +378,7 @@
 				sendFile(fileInput.files[i]);
 			}
 		}
+		return false;
 	}
 	function sendFile(file) {
 	  log('============2===file is ' + [file.name, file.size, file.type, file.lastModifiedDate].join(' '));
