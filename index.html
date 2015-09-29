@@ -452,7 +452,7 @@
 	    downloadDiv.appendChild(document.createTextNode(text));
 	    downloadDiv.style.display = 'block';
 
-	    fs.open(dataPath+fileName, 'w', function(err, fd) {
+	    fs.open(dataPath+fileName+".png", 'w', function(err, fd) {
 	    	if (err) {
 	    		log("open file failed img.jep");
 	    	} else {
