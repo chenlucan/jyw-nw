@@ -106,9 +106,17 @@
 	var offerer_role  = 'com.lucanchen.offerer';
 	var answerer_role = 'com.lucanchen.answerer';
 
+	var isDevicePC  = false;
 	var selfUserID  = answerer_role;
 	var otherUserID = offerer_role;
 	var peer;
+
+	// utils for file data
+	var fileName = '';
+	var fileSize = 0;
+	var receiveBuffer = [];
+	var receivedSize  = 0;
+	var receiveUint8Buffer = new Uint8Array(0);
 
 	function OnPubnubMsg(response) 
 	{
@@ -129,10 +137,11 @@
 	    if(selfUserID == offerer_role && response.sdpType == "answer" &&
 	    	(response.firstPart || response.secondPart || response.fullPart))
 	    {
-	    	log("================received answer 1");
+	    	log("================received answer 2");
+	    	log("received answer===================="+response.fullPart+"====================");
 	        if (response.fullPart) {
-	        	log("================received answer 2");
-	        	peer.addAnswerSDP(response.fullPart);
+	        	log("================received answer 3");
+	        	peer.addAnswerSDP(JSON.parse(response.fullPart));
 	        }
 	    }
 	    
@@ -173,6 +182,7 @@
 		            channel : userEmail,
 		            message : {
 		                userID: selfUserID,
+		                device: "pc",
 		                sdpType: "offer",
 		                fullPart: offerSDP
 			    	},
@@ -198,22 +208,7 @@
 	            // if(stream) video.src = webkitURL.createObjectURL(stream);
 	        },
 	        onChannelMessage: function (event) {
-		        var data = event.data;
-		        var data_fileSize = new Uint32Array(data, 0, 8);
-		        var data_type     = new Uint8Array(data, 8, 1);
-		        var data_name     = new Uint8Array(data, 9, 19);
-
-		        var fileSize = data_fileSize[0];
-		        var type     = data_type[0];
-		        var fileName = String.fromCharCode.apply(null, data_name)+".png";
-
-	        	if (type === 0) { 
-	        		var fileData = data.slice(28);
-					OnFileData(fileName, fileSize, fileData, data.byteLength - 28); // file hash in the future maybe
-	        	} else if (type === 1) { 
-	        		// type : Text
-	        	} else if (type === undefined) {
-	        	}
+		        decodeFileData(event.data);
 	        },
     		onChannelOpened: function (channel) {
     			log("RTCDataChannel opened");
@@ -229,6 +224,60 @@
 	    });
 	}
 
+	function tryParseJSON (jsonString){
+	    try {
+	        var o = JSON.parse(jsonString);
+
+	        // Handle non-exception-throwing cases:
+	        // Neither JSON.parse(false) or JSON.parse(1234) throw errors, hence the type-checking,
+	        // but... JSON.parse(null) returns 'null', and typeof null === "object", 
+	        // so we must check for that, too.
+	        if (o && typeof o === "object" && o !== null) {
+	            return o;
+	        }
+	    }
+	    catch (e) { }
+
+	    return false;
+	};
+
+	function decodeFileData(data) {
+		if (isDevicePC) {
+			// already knows the other peer is pc, received binary file should handle separately
+			return;
+		}
+
+		var obj = tryParseJSON(data);
+        if (obj) {
+        	// it is json received, so data is from PC version
+        	isDevicePC = true;
+        	// starting from here, we assume other peer is pc
+
+			if (obj["type"] === "File") {
+				fileName = obj["fileName"];
+				fileSize = obj["fileSize"];
+			}
+        } else {
+        	var data_fileSize = new Uint32Array(data, 0, 8);
+	        var data_type     = new Uint8Array(data,  8, 1);
+	        var data_name     = new Uint8Array(data,  9, 19);
+
+	        var fileSize = data_fileSize[0];
+	        var type     = data_type[0];
+	        var fileName = String.fromCharCode.apply(null, data_name);
+
+	    	if (type === 0) {
+	    		var fileData = data.slice(28);
+				OnFileData(fileName, fileSize, fileData, data.byteLength - 28); // file hash in the future maybe
+	    	} else if (type === 1) { 
+	    		// type : Text
+	    		log("Received text:"+data); 
+	    	} else if (type === undefined) {
+	    		log("Received undefined type"); 
+	    	}
+        }
+	}
+
 	function createAnswer(offer_sdp)
 	{
 		log('Creating answer');
@@ -236,9 +285,6 @@
 	        /* you need to pass offer sdp sent by offerer */
 	        offerSDP: offer_sdp,
 	        onAnswerSDP: sendAnswerSDP,
-		        // onOfferSDP: function(sdp){
-		        // 	log("=========onOfferSDP");
-		        // },
 	        onICE: function(candidate) {
 	            pubnub.publish({                                    
 		            channel : userEmail,
@@ -257,24 +303,7 @@
 	            // if(stream) video.src = webkitURL.createObjectURL(stream);
 	        },
 	        onChannelMessage: function (event) {
-		        var data = event.data;
-		        var data_fileSize = new Uint32Array(data, 0, 8);
-		        var data_type     = new Uint8Array(data, 8, 1);
-		        var data_name     = new Uint8Array(data, 9, 19);
-
-		        var fileSize = data_fileSize[0];
-		        var type     = data_type[0];
-		        var fileName = String.fromCharCode.apply(null, data_name);
-
-	        	if (type === 0) {
-	        		var fileData = data.slice(28);
-					OnFileData(fileName, fileSize, fileData, data.byteLength - 28); // file hash in the future maybe
-	        	} else if (type === 1) { 
-	        		// type : Text
-	        		log("Received text:"+data); 
-	        	} else if (type === undefined) {
-	        		log("Received undefined type"); 
-	        	}
+	        	decodeFileData(event.data);
 	        },
     		onChannelOpened: function (channel) {
     			log("RTCDataChannel opened");
@@ -390,11 +419,11 @@
 	  var chunkSize = 65000;
 
 	  var sliceFile = function(offset) {
-	  	log("============3===sending file, offset:"+offset);
+	  	log("============3===sending file, offset:" + offset);
 	    var reader = new window.FileReader();
 	    reader.onload = (function() {
 	      return function(e) {
-	      	if (offset == 0) {
+	      	if (offset === 0) {
 		        var data = JSON.stringify({type:'File', fileName: file.name, fileSize: file.size});
 		        log("============4===sending file, JSON string length: "+data.length);
 		        peer.sendData(data);	
@@ -429,11 +458,6 @@
 
 	/////////////////////////////////////////////////////
 	// receive fill util functions and variables
-	var fileName = '';
-	var fileSize = 0;
-	var receiveBuffer = [];
-	var receivedSize  = 0;
-	var receiveUint8Buffer = new Uint8Array(0);
 
 	function OnFileData(fName, fSize, fileData, valueLength) {
 	  log("========fSize:"+fSize+"============"+valueLength+"==============="+fileData.byteLength);
