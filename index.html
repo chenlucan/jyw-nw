@@ -9,7 +9,8 @@
 
 <body>
 <div id='mainDiv'>
-	<h2>Using email address:</h2><h1 id= "userEmail"></h1><h1 id= "connectionIndicator"></h1>
+	<button id="loginButton">Login with Facebook</button>
+	<h2 id= "userEmail"></h2><h2 id= "connectionIndicator"></h>
 	<table border="1" width="100%">
 		<tr>
 			<td align="center">
@@ -56,16 +57,7 @@
 	"use strict"
 	var gui = require('nw.gui');
 
-	var userEmail = "";
-			userEmail = "lucan";
-			// hard code for lucan
-			// do {
-			// 	userEmail = prompt("Please enter email address to connect your devices.\n\"Cancel\" to quit application");
-			// } while (userEmail === "");
-
-	if (userEmail === null || userEmail === undefined) {
-		gui.App.quit();
-	}
+	var userEmail = "", username = "";
 	
 	var fs     = require('fs');
 	var dataPath = './data/';
@@ -77,6 +69,7 @@
 	var sendTextarea    = document.getElementById("sendTextarea");
 	var receiveTextarea = document.getElementById("receiveLog");
 
+    var loginButton     = document.getElementById("loginButton");
 	var sendButton      = document.getElementById("sendButton");
 	var fileInput       = document.getElementById("fileInput");
 	var sendFileButton  = document.getElementById("sendFileButton");
@@ -84,9 +77,12 @@
 
 	var downloadDiv     = document.getElementById("received");
 
+	var login_win;
+
 	userEmailText.innerHTML = userEmail;
-	sendButton.onclick     = sendText;
-	sendFileButton.onclick = sendMutiFiles;
+	loginButton.onclick     = openLoginWindow;
+	sendButton.onclick      = sendText;
+	sendFileButton.onclick  = sendMutiFiles;
  
     var pubnub = PUBNUB({                          
         publish_key   : 'pub-c-540d3bfa-dd7a-4520-a9e4-907370d2ce37',
@@ -105,26 +101,21 @@
 
 	function oncallback(response) 
 	{
-		log("=======received Something: "+ response);
 	    if(response.userID == userID || response.userID !=='com.lucanchen.offerer' ) {
-	    	log("=======ignoring message from userID: "+ response.userID);
+	    	log("Ignoring message from userID: "+ response.userID);
 	    	return;
 	    }
-		log("=======received Something with userID: "+ response.userID);
 	    // you can show a "join" button or you can send participant request
 	    if(response.type && response.type == 'request to join') {
-	    	log("============1================");
 	    	sendParticipant();
 	    }
 
 	    // offer sdp sent to you by offerer
 	    if(response.firstPart || response.secondPart || response.fullPart)
 	    {
-	    	log("============2================");
 	        processAnswerSDP(response);
 	    }
 	    if (response.candidate) {
-	    	log("============received candidate================"+response.candidate.sdpMLineIndex+"========="+response.candidate.sdpMid+"============="+response.candidate.candidate);
 	    	log("Adding candicate");
 	    	peer.addICE({
 			    sdpMLineIndex 	: response.candidate.sdpMLineIndex,
@@ -155,9 +146,6 @@
 	        /* you need to pass offer sdp sent by offerer */
 	        offerSDP: offer_sdp,
 	        onAnswerSDP: sendAnswerSDP,
-		        // onOfferSDP: function(sdp){
-		        // 	log("=========onOfferSDP");
-		        // },
 	        onICE: function(candidate) {
 	        	log("sending candidate, candidate.sdpMLineIndex: "          +candidate.sdpMLineIndex);
 	        	log("sending candidate, candidate.sdpMLineIndex stringify: "+JSON.stringify(candidate.sdpMLineIndex));
@@ -191,16 +179,8 @@
 		        var type     = data_type[0];
 		        var fileName = String.fromCharCode.apply(null, data_name);
 
-		        log("===============receive data length: " + data.byteLength);
-		        log("===============fileSize: "            + fileSize);
-		        log("===============type: "                + type);
-		        log("===============name: "                + fileName);
-
 	        	if (type === 0) { 
 	        		// type : File
-	        		// var fileU8 = new Uint8Array(data, 9, data.byteLength - 9);
-	        		// log("==================first byte hex value: "+fileU8[0]+"======"+fileU8[1]);
-	        		// var fileData = new Uint8Array(data, 9, data.byteLength - 9).buffer;
 	        		var fileData = data.slice(28);
 					OnFileData(fileName, fileSize, fileData, data.byteLength - 28); // file hash in the future maybe
 	        	} else if (type === 1) { 
@@ -275,39 +255,23 @@
 	// got answer sdp, process it 
 	function processAnswerSDP(response)
 	{
-		log("==============processAnswerSDP=======1");
 	    if (response.firstPart) {
 	        offerSDP.firstPart = response.firstPart;
-	        log("==============processAnswerSDP=======2");
 	        if (offerSDP.secondPart) {
-	        	log("==============processAnswerSDP=======3");
 	            var fullSDP = offerSDP.firstPart + offerSDP.secondPart;
-	            log("==========using firstPart======"+fullSDP);
-	            for (var prop in fullSDP) {
-	            	log("====================1 prop:=="+prop);
-	            }
 	            createAnswer(fullSDP);
 	        }
 	    }
-	    log("==============processAnswerSDP=======4");
+
 	    if (response.secondPart) {
-	    	log("==============processAnswerSDP=======5");
 	        offerSDP.secondPart = response.secondPart;
 	        if (offerSDP.firstPart) {
 	            var fullSDP = offerSDP.firstPart + offerSDP.secondPart;
-	            log("==========using secondPart======"+fullSDP);
-	            for (var prop in fullSDP) {
-	            	log("====================2 prop:=="+prop);
-	            }
 	            createAnswer(fullSDP);
 	        }
 	    }
 
 	    if (response.fullPart) {
-	    	log("==========using fullPart======"+response.fullPart);
-            for (var prop in response.fullPart) {
-            	log("====================3 prop:=="+prop);
-            }
 	    	createAnswer(response.fullPart);
 	    }
 	}
@@ -377,7 +341,6 @@
 	var receiveUint8Buffer = new Uint8Array(0);
 
 	function OnFileData(fName, fSize, fileData, valueLength) {
-	  log("========fSize:"+fSize+"============"+valueLength+"==============="+fileData.byteLength);
 	  if (fileName === '' && fileSize === 0) {
 	    // beginning of file transfering
 	    fileName = fName;
@@ -400,19 +363,14 @@
 
 	  receiveBuffer.push(fileData);
 	  var fileDataUint8Buffer = new Uint8Array(fileData);
-	  log("===========fileData Uint8Buffer: "+fileDataUint8Buffer.byteLength);
 	  for (var i = 0; i < valueLength; ++i) {
 	  	receiveUint8Buffer[receivedSize+i] = fileDataUint8Buffer[i];
-	  	if (i === 0 || i === valueLength-1) {
-	  		log("copying 1============"+(receivedSize+i)+"=========="+receiveUint8Buffer[receivedSize+i]);	
-	  	}
 	  }
 	  receivedSize += valueLength;
 	  
 	  if (receivedSize === fileSize) {
 	    log("File received, name:"+fileName + ", size:"+fileSize);
 	    var received = new window.Blob(receiveBuffer);
-	    log("==============receiveBuffer.length:"+receiveBuffer.length+"========received.size:"+received.size+"===========receivedSize:"+receivedSize);
 
 	    downloadDiv.href = URL.createObjectURL(received);
 	    downloadDiv.download = fileName;
@@ -425,22 +383,17 @@
 	    		log("open file failed img.jep");
 	    	} else {
 	    		var a_buf = receiveUint8Buffer.buffer;
-	    		log("=========Array buffer byteLength: "+a_buf.byteLength);
 	    		var buf = new Buffer(receivedSize);
-	    		log("=========constructed buffer length: "+buf.length);
 	    		
 
 	    		for (var i = 0; i < receivedSize; ++i) {
 	    			buf[i] = receiveUint8Buffer[i];
-	    			if (i === 0 || i === receivedSize-1) {
-	    				log("copying 2============"+(i)+"=========="+buf[i]);
-	    			}
 	    		}
 	    		fs.write(fd, buf, 0, buf.length, function(err, written, buffer) {
 	    			if (err) {
-	    				log("====writen to file failed");
+	    				log("writen to file failed");
 	    			} else {
-	    				log("===========done written: "+written);
+	    				log("Received file, size: "+written);
 	    			}
 	    		});
 	    	}
@@ -450,6 +403,26 @@
 	    fileName = '';
 	    fileSize = 0;
 	  }
+	}
+
+	function openLoginWindow() {
+		login_win = gui.Window.open('http://jywlogin.parseapp.com/', {
+  			position: 'center',
+			width:  400,
+			height: 580
+		});
+
+		login_win.on('close', function() {
+			log("login window is closing");
+			userEmail = login_win.window['userid'];
+			username  = login_win.window['username'];
+			if (username === undefined) {
+				username = "";
+			} else {
+				userEmailText.innerHTML = "Hi, " + username;	
+			}
+			login_win.close(true);
+		});
 	}
 
 	function log(text) {
