@@ -9,8 +9,8 @@
 
 <body>
 <div id='mainDiv'>
-	<button id="loginButton">Login with Facebook</button>
-	<h2 id= "userEmail"></h2><h2 id= "connectionIndicator"></h>
+	<iframe id="loginframe" frameborder=0 height=50 scrolling="no" src="http://jywlogin.parseapp.com/"></iframe>
+	<h2 id= "username"></h2><h2 id= "connectionIndicator"></h>
 	<table border="1" width="100%">
 		<tr>
 			<td align="center">
@@ -57,13 +57,13 @@
 	"use strict"
 	var gui = require('nw.gui');
 
-	var userEmail = "", username = "";
+	var userid = "", username = "";
 	
 	var fs     = require('fs');
 	var dataPath = './data/';
 	fs.mkdir(dataPath, function(){});
 
-	var userEmailText   = document.getElementById("userEmail");
+	var userNameText   = document.getElementById("username");
 	var connIndicator   = document.getElementById("connectionIndicator");
 	var receiveTextarea = document.getElementById("receiveLog");
 	var sendTextarea    = document.getElementById("sendTextarea");
@@ -77,19 +77,31 @@
 
 	var downloadDiv     = document.getElementById("received");
 
-	var login_win;
+	var loginframe      = document.getElementById("loginframe");
 
-	userEmailText.innerHTML = userEmail;
-	loginButton.onclick     = openLoginWindow;
-	sendButton.onclick      = sendText;
-	sendFileButton.onclick  = sendMutiFiles;
+	window.addEventListener("message", function(event) {
+		log("loginDone event is received, "+event.data['username']+", "+event.data['userid']);
+
+		username = event.data['username'];
+		userid   = event.data['userid'];
+
+		if (username === undefined) {
+			username = "";
+		} else {
+			userNameText.innerHTML = "Hi, " + username;	
+		}
+	}, false);
+
+	userNameText.innerHTML = username;
+	sendButton.onclick     = sendText;
+	sendFileButton.onclick = sendMutiFiles;
  
     var pubnub = PUBNUB({                          
         publish_key   : 'pub-c-540d3bfa-dd7a-4520-a9e4-907370d2ce37',
         subscribe_key : 'sub-c-3af2bc02-2b93-11e5-9bdb-0619f8945a4f'
     });
     pubnub.subscribe({                                     
-        channel : userEmail,
+        channel : username,
         message : function(message,env,ch,timer,magic_ch){
         	oncallback(message);
         },
@@ -129,7 +141,7 @@
 
 	function sendParticipant() {
 		pubnub.publish({                                    
-            channel : userEmail,
+            channel : username,
             message : {
 			    participant: true,
 			    userID: userID
@@ -154,7 +166,7 @@
 	        	log("sending candidate, candidate.candidate: "          +candidate.candidate);
 	        	log("sending candidate, candidate.candidate stringify: "+JSON.stringify(candidate.candidate));
 	            pubnub.publish({                                    
-		            channel : userEmail,
+		            channel : username,
 		            message : {
 		                userID: userID,
 		                candidate: {
@@ -208,10 +220,9 @@
 	function sendAnswerSDP(sdp)
 	{
 	    var sdp = JSON.stringify(sdp);
-
 	    if (sdp.length <= 7000) {
 			pubnub.publish({                                    
-	            channel : userEmail,
+	            channel : username,
 	            message : {
 		        	userID  : userID,
 		        	fullPart: sdp
@@ -230,7 +241,7 @@
 
 	    /* transmitting first sdp part */
 		pubnub.publish({                                    
-            channel : userEmail,
+            channel : username,
             message : {
 	        	userID: userID,
 	        	firstPart: firstPart
@@ -240,7 +251,7 @@
 
 	    /* transmitting second sdp part */
 		pubnub.publish({                                    
-            channel : userEmail,
+            channel : username,
             message : {
 	        	userID: userID,
 		        secondPart: secondPart
@@ -403,26 +414,6 @@
 	    fileName = '';
 	    fileSize = 0;
 	  }
-	}
-
-	function openLoginWindow() {
-		login_win = gui.Window.open('http://jywlogin.parseapp.com/', {
-  			position: 'center',
-			width:  400,
-			height: 580
-		});
-
-		login_win.on('close', function() {
-			log("login window is closing");
-			userEmail = login_win.window['userid'];
-			username  = login_win.window['username'];
-			if (username === undefined) {
-				username = "";
-			} else {
-				userEmailText.innerHTML = "Hi, " + username;	
-			}
-			login_win.close(true);
-		});
 	}
 
 	function log(text) {
