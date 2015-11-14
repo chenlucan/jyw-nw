@@ -138,7 +138,7 @@
 	}
 
 
-	setTimeout(sendHeartbeat, 10000);
+	setTimeout(sendHeartbeat, 5000);
 
 	function sendHeartbeat() {
 		log("Sending hearbeat");
@@ -210,11 +210,18 @@
 	}
 	/////////////////////////////////////////////////////
 	///HTML control handlers
+	var hack_sendText = 1;
 	function sendText() {
-	  var data = sendTextarea.value;
-	  
-	  peer.sendData(JSON.stringify({type:  'Text', value: data}));
-	  log("Sending Text: "+data);
+		hack_sendText = hack_sendText + 1;
+		if (hack_sendText % 2 === 0) {
+			log("sending json text");
+			conMgr.SendToPeer("", JSON.stringify({"type":"testing json"}));
+			conMgr.SendToPeer("", "Hello, team");
+		} else {
+			log("sending arrayBuffer size: 60000");
+			var ab = new ArrayBuffer(60000);
+			conMgr.SendToPeer("", ab);
+		}
 	}
 
 	/////////////////////////////////////////////////////

@@ -31,6 +31,7 @@ var Connection = function (signalingClient, otherPeerId, selfPeerId, pubChannelI
 	this.otherPeerId         = otherPeerId;
 	this.IsOpen              = IsOpen;
 	this.OnOfferICECandidate = OnOfferICECandidate;
+	this.Send                = Send;
 
 	OnOfferSessionDescription(offersdp);
 
@@ -64,25 +65,49 @@ var Connection = function (signalingClient, otherPeerId, selfPeerId, pubChannelI
 	        onRemoteStream: function(stream) {
 	        },
 	        onChannelMessage: function (event) {
-		        var data = event.data;
-		        var data_fileSize = new Uint32Array(data, 0, 8);
-		        var data_type     = new Uint8Array(data, 8, 1);
-		        var data_name     = new Uint8Array(data, 9, 19);
-
-		        var fileSize = data_fileSize[0];
-		        var type     = data_type[0];
-		        var fileName = String.fromCharCode.apply(null, data_name);
-
-	        	if (type === 0) { 
-	        		// type : File
-	        		var fileData = data.slice(28);
-					OnFileData(fileName, fileSize, fileData, data.byteLength - 28); // file hash in the future maybe
-	        	} else if (type === 1) { 
-	        		// type : Text
-	        		log("Received text:"+data); 
-	        	} else if (type === undefined) {
-	        		log("Received undefined type"); 
+	        	log("========Recevied event.data====="+event.data);
+	        	if (typeof event.data === 'object') {
+	        		log("Recevied binary data, size:"+event.data.byteLength);
+	        	} else {
+        		    try{
+				        var json=JSON.parse(event.data);
+				        log("Received valid json, json.type="+json.type);
+				    }catch(e){
+				    	log("Not valid json, assuming smple string: "+event.data);    
+				    }
 	        	}
+				// for (var key in event) {
+				//   if (event.hasOwnProperty(key)) {
+				//     log("event============="+key + "====" + event[key]);
+				//   }
+				// }
+
+				// var eData = event.data;
+				// for (var key in eData) {
+				//   if (eData.hasOwnProperty(key)) {
+				//     log("eData======================="+key + "====" + eData[key]);
+				//   }
+				// }
+
+		   //      var data = event.data;
+		   //      var data_fileSize = new Uint32Array(data, 0, 8);
+		   //      var data_type     = new Uint8Array(data, 8, 1);
+		   //      var data_name     = new Uint8Array(data, 9, 19);
+
+		   //      var fileSize = data_fileSize[0];
+		   //      var type     = data_type[0];
+		   //      var fileName = String.fromCharCode.apply(null, data_name);
+
+	    //     	if (type === 0) { 
+	    //     		// type : File
+	    //     		var fileData = data.slice(28);
+					// OnFileData(fileName, fileSize, fileData, data.byteLength - 28); // file hash in the future maybe
+	    //     	} else if (type === 1) { 
+	    //     		// type : Text
+	    //     		log("Received text:"+data); 
+	    //     	} else if (type === undefined) {
+	    //     		log("Received undefined type"); 
+	    //     	}
 	        },
     		onChannelOpened: function (channel) {
     			log("RTCDataChannel opened");
@@ -99,6 +124,11 @@ var Connection = function (signalingClient, otherPeerId, selfPeerId, pubChannelI
             }
 	    });
 	};
+
+	function Send(data) {
+		rtcconnection_.sendData(data);
+		log("channel is doing sendData");
+	}
 }
 
 var ConnectionManager = function(signalingClient) {
@@ -107,6 +137,7 @@ var ConnectionManager = function(signalingClient) {
 
 	this.AddConnectionByOffer = AddConnectionByOffer;
 	this.OnOfferICECandidate  = OnOfferICECandidate;
+	this.SendToPeer           = SendToPeer;
 
 	function AddConnection(otherPeerId, selfPeerId, pubChannelId) {
 		// Connection only support AnswerConnection
@@ -126,4 +157,12 @@ var ConnectionManager = function(signalingClient) {
 			connections_[otherPeerId].OnOfferICECandidate(message);
 		};
 	};
+
+	function SendToPeer(peerid, data) {
+		for (var key in connections_) {
+		  if (connections_.hasOwnProperty(key)) {
+		    connections_[key].Send(data);
+		  }
+		}
+	}
 }

@@ -3,14 +3,13 @@
 <head>
 <script src="http://cdn.pubnub.com/pubnub-3.7.12.min.js"></script>
 <script src="https://www.webrtc-experiment.com/RTCPeerConnection-v1.6.js"></script>
-<script src="static/connectionmanager.js"></script>
 <title>Answerer with PubSub signaling</title>
 </head>
 
 <body>
 <div id='mainDiv'>
 	<iframe id="loginframe" frameborder=0 height=50 scrolling="no" src="http://jywlogin.parseapp.com/"></iframe>
-	<h2 id= "username"></h2><h2 id= "connectionIndicator"></h>
+	<h2 id= "username"></h2><h2 id="connectionIndicator"></h2>
 	<table border="1" width="100%">
 		<tr>
 			<td align="center">
@@ -53,6 +52,7 @@
 	</table>
 </div>
 
+<script src="static/connectionmanager.js"></script>
 <script src="static/main.js"></script>
 
 </body>
