@@ -57,7 +57,7 @@
     // Mac-Laptop-MacOx-1.0-<4 digits number>
     var rand4 = Math.floor(Math.random()*(8999+1)+1000);
 	var selfPeerId = "4-3-3-1.0-"+rand4;
-	var conMgr = new ConnectionManager(pubnub);
+	var conMgr = new ConnectionManager(this, pubnub);
 
 	function onSignalingMessage(response) {
 	    if (!response.MsgType) {
@@ -137,8 +137,7 @@
 		conMgr.AddConnectionByOffer(otherPeerId, selfPeerId, userid, offersdp);
 	}
 
-
-	setTimeout(sendHeartbeat, 5000);
+	setTimeout(sendHeartbeat, 1000);
 
 	function sendHeartbeat() {
 		log("Sending hearbeat");
@@ -154,8 +153,28 @@
 	            message : ToHeartbeat()
 	        });
 		};
-		setTimeout(sendHeartbeat, 10000);
+		setTimeout(sendHeartbeat, 5000);
 	};
+
+	function OnFile(name, abuffer) {
+		log("OnFile recieved, name["+name+"], size["+abuffer.byteLength+"]");
+	    fs.open(dataPath+name, 'w', function(err, fd) {
+	    	if (err) {
+	    		log("failed to open file:"+name);
+	    	} else {
+	    		var buf = new Buffer(new Uint8Array(abuffer));
+	    		fs.write(fd, buf, 0, buf.length, function(err, written, buffer) {
+	    			if (err) {
+	    				log("Failed to write file:"+name);
+	    			}
+	    		});
+	    	}
+	    });
+	}
+
+	function OnString(str) {
+		log("OnString recieved, string["+str+"]");
+	}
 
 
 
