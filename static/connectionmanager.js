@@ -155,11 +155,13 @@ RTCDataChannel protocol:
 	};
 };
 
-var Connection = function (messageDelegate, signalingClient, otherPeerId, selfPeerId, pubChannelId, offersdp) {
-	var msgHandler       = new DataChannelMessageHandler(messageDelegate);
+var Connection = function (connectionDelegate, messageDelegate, signalingClient, otherPeerId, selfPeerId, pubChannelId, offersdp) {
+	var connectionDelegate_ = connectionDelegate;
+	var msgHandler_      = new DataChannelMessageHandler(messageDelegate);
 	var signalingClient_ = signalingClient;
 	var otherPeerId_     = otherPeerId;
 	var selfPeerId_      = selfPeerId;
+	var publicChannelId_ = pubChannelId;
 	var channelIsOpen_   = false;
 	var rtcconnection_;
 
@@ -186,21 +188,15 @@ var Connection = function (messageDelegate, signalingClient, otherPeerId, selfPe
 	    rtcconnection_ = RTCPeerConnection({
 	        offerSDP: offersdp,
 	        onAnswerSDP: function(sdp) {
-	            signalingClient_.publish({
-		            channel : pubChannelId,
-		            message : ToAnswerSessionDescription(selfPeerId_, otherPeerId_, sdp)
-		        });
+	            signalingClient_.Send(ToAnswerSessionDescription(selfPeerId_, otherPeerId_, sdp), publicChannelId_);
 	        },
 	        onICE: function(candidate) {
-	            signalingClient_.publish({
-		            channel : pubChannelId,
-		            message : ToAnswerICECandidate(selfPeerId_, otherPeerId_, candidate)
-		        });
+	        	signalingClient_.Send(ToAnswerICECandidate(selfPeerId_, otherPeerId_, candidate), publicChannelId_);
 	        },
 	        onRemoteStream: function(stream) {
 	        },
 	        onChannelMessage: function (event) {
-	        	msgHandler.OnPacket(event.data);
+	        	msgHandler_.OnPacket(event.data);
 
 				// for (var key in event) {
 				//   if (event.hasOwnProperty(key)) {
@@ -244,6 +240,7 @@ var Connection = function (messageDelegate, signalingClient, otherPeerId, selfPe
     			log("RTCDataChannel closed");
     			connIndicator.innerHTML = "Disconnected";
     			channelIsOpen_ = false;
+    			connectionDelegate_.OnConnectionClosed(otherPeerId_);
     		},
             onChannelError: function (event) {
             	log("RTCDataChannel error");
@@ -265,6 +262,7 @@ var ConnectionManager = function(messageDelegate, signalingClient) {
 	this.AddConnectionByOffer = AddConnectionByOffer;
 	this.OnOfferICECandidate  = OnOfferICECandidate;
 	this.SendToPeer           = SendToPeer;
+	this.OnConnectionClosed   = OnConnectionClosed;
 
 	function AddConnection(otherPeerId, selfPeerId, pubChannelId) {
 		// Connection only support AnswerConnection
@@ -275,7 +273,7 @@ var ConnectionManager = function(messageDelegate, signalingClient) {
 	function AddConnectionByOffer(otherPeerId, selfPeerId, pubChannelId, offersdp) {
 		// Creating new connection is triggered by offer request
 		if (!connections_[otherPeerId] || !connections_[otherPeerId].IsOpen()) {
-			connections_[otherPeerId] = new Connection(delegate_, signalingClient_, otherPeerId, selfPeerId, pubChannelId, offersdp);
+			connections_[otherPeerId] = new Connection(this, delegate_, signalingClient_, otherPeerId, selfPeerId, pubChannelId, offersdp);
 		};
 	};
 
@@ -291,5 +289,10 @@ var ConnectionManager = function(messageDelegate, signalingClient) {
 		    connections_[key].Send(data);
 		  }
 		}
+	}
+
+	function OnConnectionClosed(conn_id) {
+		delete connections_[conn_id];
+		log("Remove closed connection["+conn_id+"]");
 	}
 }

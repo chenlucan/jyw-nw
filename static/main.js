@@ -23,15 +23,20 @@
 
 	var loginframe      = document.getElementById("loginframe");
 
-    var pubnub = PUBNUB({                          
-        publish_key   : 'pub-c-540d3bfa-dd7a-4520-a9e4-907370d2ce37',
-        subscribe_key : 'sub-c-3af2bc02-2b93-11e5-9bdb-0619f8945a4f'
-    });
+ 	var accountMgr = null;
 
 	window.addEventListener("message", function(event) {
 		var action = event.data['action'];
 		if (action === 0) {
 			// actionName : loggedout
+			if (accountMgr) {
+				log("===============before delete accountMgr:"+accountMgr);
+				// delete accountMgr;
+				accountMgr.Clear();
+				accountMgr = null;
+				log("===============after deleted accountMgr:"+accountMgr);
+			};
+			
 			userNameText.innerHTML = "";
 			connIndicator.innerHTML = "";
 		} else if (action === 1) {
@@ -44,124 +49,14 @@
 				username = "";
 				userid   = "";
 			} else {
+				accountMgr = new AccountManager(userid, this);
 				userNameText.innerHTML = "Hi, " + username;
-
-			    pubnub.subscribe({                                     
-			        channel : userid,
-			        message : function(message,env,ch,timer,magic_ch){
-			        	onSignalingMessage(message);
-			        },
-			        connect: function() {}
-			    });
 			}
 		}
 	}, false);
 
 	sendButton.onclick     = sendText;
 	sendFileButton.onclick = sendMutiFiles;
-
-    // HwType-UseType-OS-AppVersion-<Randome 4 digits>
-    // Mac-Laptop-MacOx-1.0-<4 digits number>
-    var rand4 = Math.floor(Math.random()*(8999+1)+1000);
-	var selfPeerId = "4-3-3-1.0-"+rand4;
-	var conMgr = new ConnectionManager(this, pubnub);
-
-	function onSignalingMessage(response) {
-	    if (!response.MsgType) {
-	    	log("Wrong message type, key [MsgTypeeeeeeee] is not present");
-	    	return;
-	    };
-	    if (!response.DeviceId) {
-	    	log("Wrong message type, key [DeviceIdddddddd] is not present");
-	    	return;
-	    };
-
-	    var msgType  = response.MsgType;
-	    var receiver = response.ToDeviceId ? response.ToDeviceId : "";
-	    if (receiver.length !== 0) {
-	    	if (receiver !== selfPeerId) {
-	    		// log("Ignoring this message, its destination is:"+receiver+", while selfPeerId:"+selfPeerId);
-	    		return;
-	    	};
-	    } else {
-	    	if (msgType !== 1) {
-	    		log("Wrong message type, key[ToDeviceId] is not present in MsgType:"+msgType);
-	    		return;
-	    	};
-	    };
-
-	    switch(msgType) {
-	    	case 1:
-	    	//hb
-	    	OnHeartBeat(response);
-	    	break;
-	    	case 2:
-	    	// offer ICE
-	    	OnOfferICECandidate(response);
-	    	break;
-	    	case 3:
-	    	// offer sdp
-	    	OnOfferSessionDescription(response);
-	    	break;
-	    	case 4:
-	    	// answer ICE
-	    	break;
-	    	case 5:
-	    	// answer sdp
-	    	break;
-	    	default:
-	    	break;
-	    }
-	}
-
-	function OnHeartBeat(message) {
-		// we don't react to hb
-		// we're waiting for offer coming in
-	};
-
-	function OnOfferICECandidate(message) {
-		if (!message['DeviceId']) {
-			log("Wrong OnOfferICECandidate message format, key[DeviceId] is not present in message");
-			return;
-		};
-		var deviceid = message['DeviceId'];
-		conMgr.OnOfferICECandidate(message, deviceid);
-	};
-
-	function OnOfferSessionDescription(message) {
-		if (!message['DeviceId']) {
-			log("Wrong OnOfferSessionDescription message format, key[DeviceId] is not present in message");
-			return;
-		};
-		if (!message['ToDeviceId']) {
-			log("Wrong message format, key[ToDeviceId] is not present in message");
-			return;
-		};
-		var otherPeerId = message['DeviceId'];
-		var selfPeerId  = message['ToDeviceId'];
-		var offersdp    = message['SessionDescription'];
-
-		conMgr.AddConnectionByOffer(otherPeerId, selfPeerId, userid, offersdp);
-	}
-
-	setTimeout(sendHeartbeat, 1000);
-
-	function sendHeartbeat() {
-		log("Sending hearbeat");
-		function ToHeartbeat() {
-			return {
-				MsgType :1,
-				DeviceId:selfPeerId
-			};
-		};
-		if (userid) {
-	        pubnub.publish({
-	            channel : userid,
-	            message : ToHeartbeat()
-	        });
-		};
-		setTimeout(sendHeartbeat, 5000);
-	};
 
 	function OnFile(name, abuffer) {
 		log("OnFile recieved, name["+name+"], size["+abuffer.byteLength+"]");
