@@ -29,24 +29,31 @@
     });
 
 	window.addEventListener("message", function(event) {
-		log("loginDone event is received, "+event.data['username']+", "+event.data['userid']);
+		var action = event.data['action'];
+		if (action === 0) {
+			// actionName : loggedout
+			userNameText.innerHTML = "";
+			connIndicator.innerHTML = "";
+		} else if (action === 1) {
+			// actionName : loggedin
+			username = event.data['username'];
+			userid   = event.data['userid'];
 
-		username = event.data['username'];
-		userid   = event.data['userid'];
+			if (username === undefined || userid === undefined) {
+				// should not happen!!
+				username = "";
+				userid   = "";
+			} else {
+				userNameText.innerHTML = "Hi, " + username;
 
-		if (username === undefined || userid === undefined) {
-			username = "";
-			userid   = "";
-		} else {
-			userNameText.innerHTML = "Hi, " + username;
-
-		    pubnub.subscribe({                                     
-		        channel : userid,
-		        message : function(message,env,ch,timer,magic_ch){
-		        	onSignalingMessage(message);
-		        },
-		        connect: function() {}
-		    });
+			    pubnub.subscribe({                                     
+			        channel : userid,
+			        message : function(message,env,ch,timer,magic_ch){
+			        	onSignalingMessage(message);
+			        },
+			        connect: function() {}
+			    });
+			}
 		}
 	}, false);
 
@@ -57,7 +64,7 @@
     // Mac-Laptop-MacOx-1.0-<4 digits number>
     var rand4 = Math.floor(Math.random()*(8999+1)+1000);
 	var selfPeerId = "4-3-3-1.0-"+rand4;
-	var conMgr = new ConnectionManager(pubnub);
+	var conMgr = new ConnectionManager(this, pubnub);
 
 	function onSignalingMessage(response) {
 	    if (!response.MsgType) {
@@ -137,8 +144,7 @@
 		conMgr.AddConnectionByOffer(otherPeerId, selfPeerId, userid, offersdp);
 	}
 
-
-	setTimeout(sendHeartbeat, 5000);
+	setTimeout(sendHeartbeat, 1000);
 
 	function sendHeartbeat() {
 		log("Sending hearbeat");
@@ -154,9 +160,28 @@
 	            message : ToHeartbeat()
 	        });
 		};
-		setTimeout(sendHeartbeat, 10000);
+		setTimeout(sendHeartbeat, 5000);
 	};
 
+	function OnFile(name, abuffer) {
+		log("OnFile recieved, name["+name+"], size["+abuffer.byteLength+"]");
+	    fs.open(dataPath+name, 'w', function(err, fd) {
+	    	if (err) {
+	    		log("failed to open file:"+name);
+	    	} else {
+	    		var buf = new Buffer(new Uint8Array(abuffer));
+	    		fs.write(fd, buf, 0, buf.length, function(err, written, buffer) {
+	    			if (err) {
+	    				log("Failed to write file:"+name);
+	    			}
+	    		});
+	    	}
+	    });
+	}
+
+	function OnString(str) {
+		log("OnString recieved, string["+str+"]");
+	}
 
 
 

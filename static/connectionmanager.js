@@ -19,9 +19,144 @@ function ToAnswerSessionDescription(peerId, ToPeerId, sdp) {
 		ToDeviceId        : ToPeerId,
 		SessionDescription: JSON.stringify(sdp)
 	};
-}
+};
 
-var Connection = function (signalingClient, otherPeerId, selfPeerId, pubChannelId, offersdp) {
+var DataChannelMessageHandler = function(messageDelegate) {
+/*
+
+RTCDataChannel protocol:
+1. able to receive data format:
+   - ArrayBuffer (binary)
+   - JSON (non-binary)
+   - string
+
+2. assume every msg has SeqNo:
+   - ArrayBuffer - a metadata json packet is sent before binary data, those ArrayBuffer
+     has the same SeqNo with its metadata packet.
+   - JSON has field SeqNo
+   - string is not handled. should be wrapped in JSON
+
+3. once deteced gap, inform other side
+
+4. If gap detected,
+	- receiver should be able to continue receive packets from new beginning of packets
+	- sender can resend the packet with new SeqNo. 
+	- assume SeqNo is ascending, though receiver side is not depending on that.
+*/
+		
+		// 	mode:
+		// 	- 1: wait for json(including file metadata)
+		// 	- 2: wait for file binary data packets numOfPackets
+		
+		// var mode = 1; 
+	var fileHandler;
+	var delegate = messageDelegate;
+
+	var FileHandler = function(fileDelegate, name, size, numOfPackets) {
+		var delegate = fileDelegate;
+		var valid = true;
+		var name = name;
+		var size = size;
+		var numOfPackets = numOfPackets;
+		var buffer = new Uint8Array(size);
+		var buffer_offset = 0;
+
+		this.OnBinary = OnBinary;
+
+		function OnBinary(abuffer) {
+			if (!valid) {
+				log("FileHandler is in not valid mode, not able to receive file binary");
+				return;
+			};
+			if (buffer_offset < 0 || buffer_offset >= size) {
+				log("FileHandler buffer_offset is out of index boundary");
+				Clear();
+				return;
+			};
+			if (buffer_offset + abuffer.byteLength > size) {
+				log("FileHandler received arraybuffer is out of index boundary");
+				Clear();
+				return;
+			};
+			buffer.set(new Uint8Array(abuffer), buffer_offset);
+			buffer_offset = buffer_offset + abuffer.byteLength;
+			numOfPackets = numOfPackets - 1;
+
+			if (size !== 0 && buffer_offset === size && numOfPackets === 0) {
+				// received all binary packets for this file
+				delegate.OnFile(name, buffer.buffer);
+			}
+		}
+
+		function Clear() {
+			valid = false;
+			name  = "";
+			size = 0;
+			numOfPackets = 0;
+			buffer = new Uint8Array(0);
+			buffer_offset = 0;
+		}
+	};
+
+	this.OnPacket  = OnPacket;
+
+	function OnPacket(data) {
+    	if (typeof data === 'object') {
+    		log("Recevied binary data, size:"+data.byteLength);
+			OnBinary(data);
+    	} else {
+		    try {
+		        var json=JSON.parse(data);
+		        OnJSON(json);
+		    } catch(e) {
+		    	log("Unhandled fomat: Not valid json, assuming smple string: "+data);    
+		    }
+    	}
+	};
+
+	function OnJSON(json) {
+			// if (mode !== 1) {
+			// 	// right now only supporting 2 modes. mode is 2: receiving files
+			// 	// incomming json means binary data loss
+			// 	// transit to mode 1
+			// 	// clear not completed files
+			// 	mode = 1;
+			// 	fileHandler = undefined;
+			// };
+
+		if (json.Type) {
+			if (json.Type === 1) {
+				// file metadata
+				var name = json.Name;
+				var size = json.Size;
+				var numOfPackets = json.NumOfPackets;
+				
+				var md5  = json.MD5;
+				var dir  = json.Directory;
+				var oper = json.Operation;
+				fileHandler = new FileHandler(delegate, name, size, numOfPackets);
+					// mode = 2;
+			} else if (json.Type === 2) {
+				// string received
+				var content = json.Content;
+				delegate.OnString(content);
+			}
+		}
+	};
+
+	function OnBinary(buffer) {
+			// if (mode !== 2) {
+			// 	log("DataChannelMessageHandler is not in mode of receiving file binary packets, ignore this binary packet");
+			// 	return;
+			// };
+		if (fileHandler) {
+			fileHandler.OnBinary(buffer);
+		};
+	};
+};
+
+var Connection = function (messageDelegate, signalingClient, otherPeerId, selfPeerId, pubChannelId, offersdp) {
+	var msgHandler       = new DataChannelMessageHandler(messageDelegate);
 	var signalingClient_ = signalingClient;
 	var otherPeerId_     = otherPeerId;
 	var selfPeerId_      = selfPeerId;
@@ -65,17 +200,8 @@ var Connection = function (signalingClient, otherPeerId, selfPeerId, pubChannelI
 	        onRemoteStream: function(stream) {
 	        },
 	        onChannelMessage: function (event) {
-	        	log("========Recevied event.data====="+event.data);
-	        	if (typeof event.data === 'object') {
-	        		log("Recevied binary data, size:"+event.data.byteLength);
-	        	} else {
-        		    try{
-				        var json=JSON.parse(event.data);
-				        log("Received valid json, json.type="+json.type);
-				    }catch(e){
-				    	log("Not valid json, assuming smple string: "+event.data);    
-				    }
-	        	}
+	        	msgHandler.OnPacket(event.data);
+
 				// for (var key in event) {
 				//   if (event.hasOwnProperty(key)) {
 				//     log("event============="+key + "====" + event[key]);
@@ -131,7 +257,8 @@ var Connection = function (signalingClient, otherPeerId, selfPeerId, pubChannelI
 	}
 }
 
-var ConnectionManager = function(signalingClient) {
+var ConnectionManager = function(messageDelegate, signalingClient) {
+	var delegate_        = messageDelegate;
 	var signalingClient_ = signalingClient;
 	var connections_     = {};
 
@@ -148,7 +275,7 @@ var ConnectionManager = function(signalingClient) {
 	function AddConnectionByOffer(otherPeerId, selfPeerId, pubChannelId, offersdp) {
 		// Creating new connection is triggered by offer request
 		if (!connections_[otherPeerId] || !connections_[otherPeerId].IsOpen()) {
-			connections_[otherPeerId] = new Connection(signalingClient_, otherPeerId, selfPeerId, pubChannelId, offersdp);
+			connections_[otherPeerId] = new Connection(delegate_, signalingClient_, otherPeerId, selfPeerId, pubChannelId, offersdp);
 		};
 	};
 
