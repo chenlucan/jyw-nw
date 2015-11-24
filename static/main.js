@@ -29,24 +29,31 @@
     });
 
 	window.addEventListener("message", function(event) {
-		log("loginDone event is received, "+event.data['username']+", "+event.data['userid']);
+		var action = event.data['action'];
+		if (action === 0) {
+			// actionName : loggedout
+			userNameText.innerHTML = "";
+			connIndicator.innerHTML = "";
+		} else if (action === 1) {
+			// actionName : loggedin
+			username = event.data['username'];
+			userid   = event.data['userid'];
 
-		username = event.data['username'];
-		userid   = event.data['userid'];
+			if (username === undefined || userid === undefined) {
+				// should not happen!!
+				username = "";
+				userid   = "";
+			} else {
+				userNameText.innerHTML = "Hi, " + username;
 
-		if (username === undefined || userid === undefined) {
-			username = "";
-			userid   = "";
-		} else {
-			userNameText.innerHTML = "Hi, " + username;
-
-		    pubnub.subscribe({                                     
-		        channel : userid,
-		        message : function(message,env,ch,timer,magic_ch){
-		        	onSignalingMessage(message);
-		        },
-		        connect: function() {}
-		    });
+			    pubnub.subscribe({                                     
+			        channel : userid,
+			        message : function(message,env,ch,timer,magic_ch){
+			        	onSignalingMessage(message);
+			        },
+			        connect: function() {}
+			    });
+			}
 		}
 	}, false);
 
@@ -175,7 +182,6 @@
 	function OnString(str) {
 		log("OnString recieved, string["+str+"]");
 	}
-
 
 
 
