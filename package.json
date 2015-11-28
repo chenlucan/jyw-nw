@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "main": "index.html",
   "window": {
-    "icon": "PrivateCloud.png"
+    "icon": "PrivateCloud.png",
+    "toolbar": false
   }
 }
