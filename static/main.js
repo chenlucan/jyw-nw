@@ -4,6 +4,15 @@ global.$ = $;
 var abar = require('address_bar');
 var folder_view = require('folder_view');
 var gui = require('nw.gui');
+var fs     = require('fs');
+var homePath = process.env['HOME']+'/PrivateCloud/';
+var picPath = homePath + 'Pictures/';
+fs.mkdir(homePath, function(err) {
+	if (err) {
+		log("Failed to create home: "+homePath);
+	}
+	fs.mkdir(picPath,  function(err) {});
+});
 
 // Extend application menu for Mac OS
 if (process.platform == "darwin") {
@@ -85,15 +94,7 @@ $(document).ready(function() {
 
 
 
-
-
-var gui = require('nw.gui');
-
 var userid = "", username = "";
-
-var fs     = require('fs');
-var dataPath = './data/';
-fs.mkdir(dataPath, function(){});
 
 var userNameText    = document.getElementById("username");
 var connIndicator   = document.getElementById("connectionIndicator");
@@ -132,7 +133,7 @@ window.addEventListener("message", function(event) {
 
 function OnFile(name, abuffer) {
 	log("OnFile recieved, name["+name+"], size["+abuffer.byteLength+"]");
-    fs.open(dataPath+name, 'w', function(err, fd) {
+    fs.open(picPath+name, 'w', function(err, fd) {
     	if (err) {
     		log("failed to open file:"+name);
     	} else {
