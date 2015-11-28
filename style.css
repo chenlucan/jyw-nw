@@ -1,0 +1,64 @@
+* {
+  -webkit-user-select: none;
+}
+
+body {
+  background-image: url('images/htmlbg.png')
+}
+
+.files {
+  padding: 0;
+  margin: 0;
+}
+
+.file {
+  padding: 2px;
+  margin: 2px;
+  width: 80px;
+  display: inline-block;
+
+  text-align: center;
+  vertical-align: top;
+}
+
+.file.focus {
+  background-color: #08C;
+  -webkit-border-radius: 4px;
+}
+
+.file .name {
+  width: 80px;
+  word-wrap: break-word;
+}
+
+.file.focus .name {
+  color: white;
+}
+
+.file .icon {
+  margin: auto;
+  margin-top: 0;
+  width: 60px;
+}
+
+.file.focus .icon {
+  -webkit-filter: invert(20%);
+}
+
+
+/* customize status bar*/
+.statusbar {
+    width: 100%; /* Try setting this to 400px or something */
+    display: table;
+    border: 1px solid #444444;
+}
+.statusitem {
+    display: table-cell;
+}
+.childinner {
+    margin-left: 25px;
+    height: 30px;
+}
+.child:first-child .childinner {
+    margin-left: 0;
+}
