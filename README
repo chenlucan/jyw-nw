@@ -1,0 +1,4 @@
+Mac:
+1. Go to project folder
+2. Create .nw file with all project files: zip -r ../PrivateCloud.nw *
+3. Put the tree of your app in a directory named nwjs.app/Contents/Resources/app.nw
