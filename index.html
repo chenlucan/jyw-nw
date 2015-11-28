@@ -10,46 +10,6 @@
 <div id='mainDiv'>
 	<iframe id="loginframe" frameborder=0 height=50 scrolling="no" src="http://jywlogin.parseapp.com/"></iframe>
 	<h2 id= "username"></h2><h2 id="connectionIndicator"></h2>
-	<table border="1" width="100%">
-		<tr>
-			<td align="center">
-				<textarea rows="4" cols="60" id="sendTextarea"></textarea>
-			</td>
-			<td align="center">
-				<textarea rows="4" cols="60" id="receiveLog"></textarea>
-			</td>		
-		</tr>
-		<tr>
-			<td align="center">
-				<button id="sendButton">Send</button>
-				<select id="typeSelect">
-					<option>Notification</option>
-					<option>Alert</option>
-				</select>
-			</td>
-			<td></td>
-		</tr>	
-		<tr>
-			<td align="center">
-				<a id="received"></a>	
-			</td>
-			<td align="center">
-			</td>
-		</tr>
-		<tr>
-			<td align="center">
-				<form id="fileInfo">
-	        		<input type="file" id="fileInput" name="files" multiple/>
-	        		<button id="sendFileButton">Send File</button>
-				</form>
-				<div class="progress">
-					<div class="label">Send progress: </div>
-					<progress id="sendProgress" max="0" value="0"></progress>
-				</div>
-			</td>
-			<td></td>
-		</tr>
-	</table>
 </div>
 
 <script src="static/connectionmanager.js"></script>
